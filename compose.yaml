@@ -1,0 +1,91 @@
+name: hefesto-traducciones
+services:
+  permissions:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    user: 0:0
+    entrypoint:
+    - sh
+    - -ec
+    command:
+    - chown -R 1032:1032 /keys /models && chmod 700 /keys /models
+    volumes:
+    - keys:/keys
+    - models:/models
+    restart: 'no'
+  app:
+    image: libretranslate/libretranslate:v1.9.6@sha256:1de2d7056bb8ad607a412f4563d9abe324ff632b43b5be9428bcc8e213aebb32
+    user: 1032:1032
+    restart: unless-stopped
+    environment:
+      LT_LOAD_ONLY: en,es
+      LT_UPDATE_MODELS: 'false'
+      LT_API_KEYS: 'true'
+      LT_API_KEYS_DB_PATH: /app/db/api_keys.db
+      LT_REQ_LIMIT: '30'
+      LT_CHAR_LIMIT: '3000'
+      LT_BATCH_LIMIT: '4'
+      LT_THREADS: '1'
+      LT_DISABLE_FILES_TRANSLATION: 'true'
+      LT_SUGGESTIONS: 'false'
+      LT_METRICS: 'false'
+      LT_FRONTEND_LANGUAGE: es
+      LT_FRONTEND_LANGUAGE_SOURCE: es
+      LT_FRONTEND_LANGUAGE_TARGET: en
+      LT_FRONTEND_TITLE: Hefesto Traducciones
+      LT_DEBUG: 'false'
+      LT_REQ_LIMIT_STORAGE: memory://
+      LT_SHARED_STORAGE: memory://
+    volumes:
+    - keys:/app/db
+    - models:/home/libretranslate
+    expose:
+    - '5000'
+    depends_on:
+      permissions:
+        condition: service_completed_successfully
+    healthcheck:
+      test:
+      - CMD
+      - ./venv/bin/python
+      - scripts/healthcheck.py
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 20m
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  gateway:
+    image: caddy:2-alpine@sha256:d8542f48d34a9cf4e4c11a478865229840e87e4c96ea3f439101f31a5d35f75f
+    restart: unless-stopped
+    entrypoint:
+    - sh
+    - /ops/gateway-start.sh
+    environment:
+      BASIC_AUTH_USER: ${BASIC_AUTH_USER:?Configurar usuario}
+      BASIC_AUTH_HASH: ${BASIC_AUTH_HASH:?Configurar hash bcrypt}
+    volumes:
+    - ./ops:/ops:ro
+    expose:
+    - '8080'
+    depends_on:
+      app:
+        condition: service_healthy
+    security_opt:
+    - no-new-privileges:true
+    cap_drop:
+    - ALL
+  filetools:
+    image: postgres:17-alpine@sha256:b0f9560a2de083e2cc7382e75f808c7381a32852a7ec49117deedb300e552b24
+    profiles:
+    - tools
+    user: 0:0
+    entrypoint:
+    - sh
+    volumes:
+    - keys:/keys
+    - models:/models
+volumes:
+  keys: {}
+  models: {}

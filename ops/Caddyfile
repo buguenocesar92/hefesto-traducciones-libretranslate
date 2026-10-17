@@ -1,0 +1,23 @@
+{
+    auto_https off
+    admin off
+    persist_config off
+}
+:8080 {
+    basic_auth {
+        {$BASIC_AUTH_USER} {$BASIC_AUTH_HASH}
+    }
+    request_body {
+        max_size 128KB
+    }
+    header {
+        X-Content-Type-Options nosniff
+        Referrer-Policy no-referrer
+        -Server
+    }
+    reverse_proxy app:5000 {
+        header_up X-Forwarded-For {remote_host}
+        header_up -X-Real-IP
+        header_up -Authorization
+    }
+}
